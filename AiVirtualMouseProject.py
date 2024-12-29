@@ -1,57 +1,99 @@
 import cv2
-import HandTrackingModule as htm
-import pyautogui
-import time
-from tensorflow.keras.models import load_model
 import numpy as np
+import pandas as pd
+import tensorflow as tf
+from HandTrackingModule import HandDetector
+import time
 
 # تحميل النموذج المدرب
-model = load_model("gesture_model.h5")
+model = tf.keras.models.load_model('gesture_model.h5')
 
+# الكاميرا
 cap = cv2.VideoCapture(0)
-detector = htm.HandDetector(detectionCon=0.7)
 
-screen_width, screen_height = pyautogui.size()
+# تعريف المتغيرات لتخزين النتائج
+results = []
 
-last_click_time = 0
-prev_time = 0
+# تعريف الكاشف
+detector = HandDetector()
 
-while True:
-    success, img = cap.read()
-    if not success:
-        break
 
-    img = detector.findHands(img)
-    lmList = detector.findPosition(img)
+# دالة لمعالجة الفيديو
+def process_video():
+    frame_count = 0
+    correct_predictions = 0
+    total_predictions = 0
 
-    if len(lmList) != 0:
-        # استخراج الميزات من نقاط اليد
-        features = [lm[1:] for lm in lmList[:20]]  # خذ أول 20 نقطة فقط كميزة
-        features = np.array(features).flatten().reshape(1, -1)
+    while True:
+        ret, img = cap.read()
+        if not ret:
+            break
 
-        # التنبؤ بالإيماءة باستخدام النموذج
-        gesture = (model.predict(features) > 0.5).astype("int32")
+        # تحويل الصورة إلى RGB
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-        if gesture == 1:  # إذا كان الإيماءة تعني النقر
-            pyautogui.click()
+        # كشف اليد
+        lmList = detector.findPosition(img_rgb)
 
-        # متابعة المؤشر
-        index_finger_tip = lmList[8]
-        x, y = index_finger_tip[1], index_finger_tip[2]
-        screen_x = int(screen_width * (x / img.shape[1]))
-        screen_y = int(screen_height * (y / img.shape[0]))
-        pyautogui.moveTo(screen_x, screen_y)
+        if lmList:
+            # استخراج الميزات (features) من اليد
+            features = extract_features(lmList)
 
-    current_time = time.time()
-    fps = 1 / (current_time - prev_time)
-    prev_time = current_time
+            # التنبؤ بالإشارة من النموذج المدرب
+            prediction = model.predict(features)
+            gesture = np.argmax(prediction)  # الحصول على الإشارة التي حصلت على أعلى احتمالية
 
-    cv2.putText(img, f"FPS: {int(fps)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # تحديد الإشارة الصحيحة بناءً على وضع اليد أو البيانات المتاحة
+            correct_gesture = get_correct_gesture(img)  # دالة مخصصة للحصول على الإشارة الصحيحة في كل إطار
 
-    cv2.imshow("Image", img)
+            # إضافة التنبؤات للمقارنة
+            total_predictions += 1
+            if gesture == correct_gesture:
+                correct_predictions += 1
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # تحديث عرض الصورة
+        cv2.imshow("Virtual Mouse", img)
 
+        # إغلاق الكاميرا عند الضغط على 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+        frame_count += 1
+
+    # حساب الدقة بعد إغلاق الكاميرا
+    accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+    print(f"Accuracy: {accuracy:.2f}")
+
+    # حفظ النتائج في جدول بيانات
+    results.append({
+        'total_frames': frame_count,
+        'correct_predictions': correct_predictions,
+        'total_predictions': total_predictions,
+        'accuracy': accuracy
+    })
+
+    # تحويل النتائج إلى DataFrame وحفظها
+    df = pd.DataFrame(results)
+    df.to_csv("gesture_accuracy.csv", index=False)
+
+
+
+
+# دالة لاستخراج الميزات (حسب المتطلبات)
+def extract_features(lmList):
+    # فرضاً نأخذ المسافات بين بعض النقاط كنموذج
+    features = []
+    for i in range(0, len(lmList), 2):
+        # حساب الفرق بين النقاط (على سبيل المثال بين x و y)
+        dx = lmList[i + 1][1] - lmList[i][1]  # فرق الإحداثيات x
+        dy = lmList[i + 1][2] - lmList[i][2]  # فرق الإحداثيات y
+        features.append([dx, dy])  # إضافة الفرق بين النقاط
+    return np.array(features).reshape(1, -1)
+
+
+# بدء عملية الفيديو
+process_video()
+
+# تحرير الكاميرا
 cap.release()
 cv2.destroyAllWindows()

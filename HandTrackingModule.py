@@ -29,10 +29,13 @@ class HandDetector:
                     self.mpDraw.draw_landmarks(img, handLms, self.mpHands.HAND_CONNECTIONS)
         else:
             print("No hands detected!")
-            return img
+        return img
 
     def findPosition(self, img, handNo=0, draw=True):
         self.lmList = []
+        if img is None:
+            return self.lmList  # إذا كانت الصورة None، عد فارغًا
+
         if self.results.multi_hand_landmarks:
             myHand = self.results.multi_hand_landmarks[handNo]
             for id, lm in enumerate(myHand.landmark):
