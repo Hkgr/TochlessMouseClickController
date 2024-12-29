@@ -2,6 +2,11 @@ import cv2
 import HandTrackingModule as htm
 import pyautogui
 import time
+from tensorflow.keras.models import load_model
+import numpy as np
+
+# تحميل النموذج المدرب
+model = load_model("gesture_model.h5")
 
 cap = cv2.VideoCapture(0)
 detector = htm.HandDetector(detectionCon=0.7)
@@ -20,30 +25,22 @@ while True:
     lmList = detector.findPosition(img)
 
     if len(lmList) != 0:
-        index_finger_tip = lmList[8]
-        middle_finger_tip = lmList[12]
+        # استخراج الميزات من نقاط اليد
+        features = [lm[1:] for lm in lmList[:20]]  # خذ أول 20 نقطة فقط كميزة
+        features = np.array(features).flatten().reshape(1, -1)
 
-        x = index_finger_tip[1]
-        y = index_finger_tip[2]
+        # التنبؤ بالإيماءة باستخدام النموذج
+        gesture = (model.predict(features) > 0.5).astype("int32")
+
+        if gesture == 1:  # إذا كان الإيماءة تعني النقر
+            pyautogui.click()
+
+        # متابعة المؤشر
+        index_finger_tip = lmList[8]
+        x, y = index_finger_tip[1], index_finger_tip[2]
         screen_x = int(screen_width * (x / img.shape[1]))
         screen_y = int(screen_height * (y / img.shape[0]))
-
         pyautogui.moveTo(screen_x, screen_y)
-
-        fingers = detector.fingersUp()
-
-        print(f"Fingers: {fingers}")
-
-        if fingers[1] == 1 and fingers[2] == 1:
-            current_time = time.time()
-            if current_time - last_click_time > 0.2:
-                pyautogui.doubleClick()
-                last_click_time = current_time
-                print("Double Click Detected!")
-            else:
-                print("Double Click Not Detected - Time Interval Too Short")
-        else:
-            print("Index and Middle Finger Not Both Raised")
 
     current_time = time.time()
     fps = 1 / (current_time - prev_time)
