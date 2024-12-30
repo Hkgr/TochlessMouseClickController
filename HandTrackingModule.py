@@ -34,7 +34,7 @@ class HandDetector:
     def findPosition(self, img, handNo=0, draw=True):
         self.lmList = []
         if img is None:
-            return self.lmList  # إذا كانت الصورة None، عد فارغًا
+            return self.lmList
 
         if self.results.multi_hand_landmarks:
             myHand = self.results.multi_hand_landmarks[handNo]
@@ -51,13 +51,11 @@ class HandDetector:
         if len(self.lmList) == 0:
             return fingers
 
-        # Thumb
         if self.lmList[self.tipIds[0]][1] > self.lmList[self.tipIds[0] - 1][1]:
             fingers.append(1)
         else:
             fingers.append(0)
 
-        # Other fingers
         for id in range(1, 5):
             if self.lmList[self.tipIds[id]][2] < self.lmList[self.tipIds[id] - 2][2]:
                 fingers.append(1)
