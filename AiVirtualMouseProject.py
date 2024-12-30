@@ -1,67 +1,81 @@
 import cv2
 import numpy as np
-import pandas as pd
-import tensorflow as tf
-from HandTrackingModule import HandDetector
-import time
+import mediapipe as mp
+from tensorflow.keras.models import load_model
 
-model = tf.keras.models.load_model('gesture_model.h5')
+# تحميل النموذج المدرب
+model = load_model("optimized_gesture_model.h5")
+
+# إعداد Mediapipe لتتبع اليد
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands()
+mp_draw = mp.solutions.drawing_utils
+
+# قائمة الإيماءات الممكنة (محدثة لخمسة إيماءات)
+classes = ["No Gesture", "Move Mouse", "Double Click", "Scroll Up", "Scroll Down"]
+
+# فتح كاميرا الويب
 cap = cv2.VideoCapture(0)
-results = []
-detector = HandDetector()
 
-def process_video():
-    frame_count = 0
-    correct_predictions = 0
-    total_predictions = 0
+while True:
+    # قراءة إطار من الكاميرا
+    ret, frame = cap.read()
 
-    while True:
-        ret, img = cap.read()
-        if not ret:
-            break
+    if not ret:
+        print("فشل في التقاط الإطار")
+        break
 
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        lmList = detector.findPosition(img_rgb)
+    # تحويل الصورة إلى RGB لأن Mediapipe يعمل على هذا التنسيق
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        if lmList:
-            features = extract_features(lmList)
-            prediction = model.predict(features)
-            gesture = np.argmax(prediction)
-            correct_gesture = get_correct_gesture(img)
+    # اكتشاف اليدين
+    result = hands.process(frame_rgb)
 
-            total_predictions += 1
-            if gesture == correct_gesture:
-                correct_predictions += 1
+    # إذا تم اكتشاف يد
+    if result.multi_hand_landmarks:
+        for hand_landmarks in result.multi_hand_landmarks:
+            # رسم المعالم على اليد
+            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-        cv2.imshow("Virtual Mouse", img)
+            # استخراج إحداثيات النقاط (إزالة الفهرس الأول لأنه لا يحتوي على معلومات الموقع)
+            lmList = [[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark]
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            # إذا كان عدد النقاط أقل من 21، نعرض رسالة
+            if len(lmList) != 21:
+                print("عدد النقاط في lmList:", len(lmList))
+                continue
 
-        frame_count += 1
+            # تحويل إحداثيات اليد إلى بيانات الإدخال
+            data = np.array([coord[0] for coord in lmList] +
+                            [coord[1] for coord in lmList] +
+                            [coord[2] for coord in lmList]).flatten().reshape(1, 21,
+                                                                              3)  # يجب أن يكون حجم البيانات (1, 21, 3)
 
-    accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
-    print(f"Accuracy: {accuracy:.2f}")
+            # إعادة تشكيل البيانات لتتناسب مع متطلبات النموذج
+            data = data.reshape(1, 210, 1)  # إعادة تشكيل البيانات إلى (1, 210, 1)
 
-    results.append({
-        'total_frames': frame_count,
-        'correct_predictions': correct_predictions,
-        'total_predictions': total_predictions,
-        'accuracy': accuracy
-    })
+            # التنبؤ بالإشارة باستخدام الموديل
+            prediction = model.predict(data)
 
-    df = pd.DataFrame(results)
-    df.to_csv("gesture_accuracy.csv", index=False)
+            # الحصول على الفهرس الأعلى في التنبؤ
+            gesture_index = np.argmax(prediction)
 
-def extract_features(lmList):
-    features = []
-    for i in range(0, len(lmList), 2):
-        dx = lmList[i + 1][1] - lmList[i][1]
-        dy = lmList[i + 1][2] - lmList[i][2]
-        features.append([dx, dy])
-    return np.array(features).reshape(1, -1)
+            # ضمان أن الفهرس ضمن النطاق المناسب
+            gesture_index = max(0, min(gesture_index, len(classes) - 1))  # ضمان أن الفهرس ضمن النطاق
 
-process_video()
+            # الحصول على اسم الإشارة
+            gesture_name = classes[gesture_index]
 
+            # عرض الإشارة المتوقعة على الشاشة
+            cv2.putText(frame, f"Gesture: {gesture_name}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+    # عرض الإطار
+    cv2.imshow("Hand Gesture Recognition", frame)
+
+    # الخروج عند الضغط على مفتاح 'q'
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# تحرير الكاميرا وإغلاق النوافذ
 cap.release()
 cv2.destroyAllWindows()
