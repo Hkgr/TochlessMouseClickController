@@ -1,3 +1,5 @@
+#AiVitualMouseProject.py
+
 import cv2
 import numpy as np
 import pyautogui
@@ -5,8 +7,8 @@ from HandTrackingModule import HandDetector  # استيراد كلاس HandDetec
 from tensorflow.keras.models import load_model
 
 # تحميل الموديل المدرب
-model = load_model("optimized_gesture_model.h5")  # ضع مسار الموديل هنا
-classes = ["0", "1"]
+model = load_model("enhanced_gesture_model.h5")  # ضع مسار الموديل هنا
+classes = ["0", "1","2","3","4"]
 # تهيئة HandDetector
 detector = HandDetector(maxHands=1, detectionCon=0.7, trackCon=0.7)
 

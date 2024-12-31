@@ -1,3 +1,5 @@
+#landmakers.py
+
 import cv2
 import openpyxl
 from HandTrackingModule import HandDetector
@@ -50,7 +52,7 @@ while True:
 print("العملية انتهت. الآن يمكنك إدخال الإشارات يدويًا في ملف Excel.")
 
 for i, landmarks in enumerate(landmarks_list):
-    gesture = "0"
+    gesture = 1
     ws.append([gesture, str(landmarks)])
 
 wb.save(file_name)
