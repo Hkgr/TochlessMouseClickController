@@ -1,81 +1,86 @@
 import cv2
 import numpy as np
-import mediapipe as mp
+import pyautogui
+from HandTrackingModule import HandDetector  # استيراد كلاس HandDetector
 from tensorflow.keras.models import load_model
 
-# تحميل النموذج المدرب
-model = load_model("optimized_gesture_model.h5")
+# تحميل الموديل المدرب
+model = load_model("optimized_gesture_model.h5")  # ضع مسار الموديل هنا
+classes = ["0", "1"]
+# تهيئة HandDetector
+detector = HandDetector(maxHands=1, detectionCon=0.7, trackCon=0.7)
 
-# إعداد Mediapipe لتتبع اليد
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands()
-mp_draw = mp.solutions.drawing_utils
+# الحصول على أبعاد الشاشة
+screen_width, screen_height = pyautogui.size()
 
-# قائمة الإيماءات الممكنة (محدثة لخمسة إيماءات)
-classes = ["No Gesture", "Move Mouse", "Double Click", "Scroll Up", "Scroll Down"]
-
-# فتح كاميرا الويب
+# تهيئة الكاميرا
 cap = cv2.VideoCapture(0)
 
 while True:
-    # قراءة إطار من الكاميرا
     ret, frame = cap.read()
-
     if not ret:
-        print("فشل في التقاط الإطار")
         break
 
-    # تحويل الصورة إلى RGB لأن Mediapipe يعمل على هذا التنسيق
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # قلب الإطار أفقيًا
+    frame = cv2.flip(frame, 1)
 
-    # اكتشاف اليدين
-    result = hands.process(frame_rgb)
+    # العثور على اليدين والإحداثيات
+    frame = detector.findHands(frame)
+    lmList = detector.findPosition(frame, draw=False)
 
-    # إذا تم اكتشاف يد
-    if result.multi_hand_landmarks:
-        for hand_landmarks in result.multi_hand_landmarks:
-            # رسم المعالم على اليد
-            mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+    # تحقق من عدد النقاط في lmList
+    print(f"عدد النقاط في lmList: {len(lmList)}")
 
-            # استخراج إحداثيات النقاط (إزالة الفهرس الأول لأنه لا يحتوي على معلومات الموقع)
-            lmList = [[lm.x, lm.y, lm.z] for lm in hand_landmarks.landmark]
+    if len(lmList) > 0:
+        # طباعة النقاط نفسها لتفقد القيم
+        print("نقاط lmList:", lmList)
 
-            # إذا كان عدد النقاط أقل من 21، نعرض رسالة
-            if len(lmList) != 21:
-                print("عدد النقاط في lmList:", len(lmList))
-                continue
+        # استخراج الإحداثيات المسطحة من lmList
+        data = np.array([coord[1:] for coord in lmList]).flatten()
 
-            # تحويل إحداثيات اليد إلى بيانات الإدخال
-            data = np.array([coord[0] for coord in lmList] +
-                            [coord[1] for coord in lmList] +
-                            [coord[2] for coord in lmList]).flatten().reshape(1, 21,
-                                                                              3)  # يجب أن يكون حجم البيانات (1, 21, 3)
+        # تحقق من شكل البيانات قبل إرسالها للنموذج
+        print(f"بيانات الإدخال قبل إعادة تشكيلها: {data.shape}")
 
-            # إعادة تشكيل البيانات لتتناسب مع متطلبات النموذج
-            data = data.reshape(1, 210, 1)  # إعادة تشكيل البيانات إلى (1, 210, 1)
+        # تأكد من أن البيانات تحتوي على الحجم الصحيح (في هذه الحالة 210)
+        if len(data) == 42:
+            # إضافة قيم صفرية لتكملة البيانات إلى 210
+            data = np.pad(data, (0, 210 - len(data)), 'constant')
+            data = data.reshape(1, 210, 1)  # إعادة تشكيل البيانات لتناسب المدخلات المطلوبة
+
+            print(f"بيانات الإدخال بعد إعادة تشكيلها: {data.shape}")
 
             # التنبؤ بالإشارة باستخدام الموديل
             prediction = model.predict(data)
-
-            # الحصول على الفهرس الأعلى في التنبؤ
             gesture_index = np.argmax(prediction)
-
-            # ضمان أن الفهرس ضمن النطاق المناسب
-            gesture_index = max(0, min(gesture_index, len(classes) - 1))  # ضمان أن الفهرس ضمن النطاق
-
-            # الحصول على اسم الإشارة
             gesture_name = classes[gesture_index]
 
             # عرض الإشارة المتوقعة على الشاشة
             cv2.putText(frame, f"Gesture: {gesture_name}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    # عرض الإطار
-    cv2.imshow("Hand Gesture Recognition", frame)
+            # تنفيذ التحكم بناءً على الإشارة
+            fingers = detector.fingersUp()
+            if gesture_name == "1" and fingers[1] == 1 and fingers[2] == 0:
+                # تحريك الماوس بناءً على إحداثيات السبابة
+                x_mouse = int(lmList[8][1] * screen_width / frame.shape[1])
+                y_mouse = int(lmList[8][2] * screen_height / frame.shape[0])
+                pyautogui.moveTo(x_mouse, y_mouse)
 
-    # الخروج عند الضغط على مفتاح 'q'
+            elif gesture_name == "3" and fingers[1] == 1 and fingers[2] == 1:
+                # تنفيذ النقر المزدوج
+                pyautogui.doubleClick()
+
+        else:
+            print("البيانات المدخلة غير صحيحة (يجب أن تكون 42 قيمة).")
+
+    else:
+        print("لا توجد يد مكتشفة!")
+
+    # عرض الإطار مع النقاط المكتشفة
+    cv2.imshow("Gesture Control", frame)
+
+    # إنهاء البرنامج عند الضغط على مفتاح 'q'
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# تحرير الكاميرا وإغلاق النوافذ
 cap.release()
 cv2.destroyAllWindows()

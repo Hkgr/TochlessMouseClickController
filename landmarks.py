@@ -50,7 +50,7 @@ while True:
 print("العملية انتهت. الآن يمكنك إدخال الإشارات يدويًا في ملف Excel.")
 
 for i, landmarks in enumerate(landmarks_list):
-    gesture = input(f"أدخل الإشارة للإطار {i + 1} (مثل 'سبابة مرفوعة'): ")
+    gesture = "0"
     ws.append([gesture, str(landmarks)])
 
 wb.save(file_name)
