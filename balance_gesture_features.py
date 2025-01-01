@@ -1,4 +1,4 @@
-#balance_gesture_featuers.py
+# balance_gesture_features.py
 
 import pandas as pd
 from imblearn.over_sampling import SMOTE
@@ -6,102 +6,88 @@ from sklearn.model_selection import train_test_split
 import os
 
 
-# ------------------------
-# 1. تحميل البيانات
-# ------------------------
+# تحميل البيانات من ملف Excel
 def load_data(file_path):
-    """
-    تحميل البيانات من ملف Excel.
-    """
+    print(f"جارٍ تحميل البيانات من الملف: {file_path}")
+
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"الملف {file_path} غير موجود.")
 
     data = pd.read_excel(file_path)
+
+    # تحقق من وجود عمود 'Gesture' في البيانات
+    if 'Gesture' not in data.columns:
+        raise ValueError("العمود 'Gesture' غير موجود في البيانات.")
+
+    print(f"تم تحميل البيانات بنجاح. عدد الأسطر: {len(data)}")
     return data
 
 
-# ------------------------
-# 2. التحقق من توازن الفئات
-# ------------------------
+# التحقق من توزيع الفئات
 def check_balance(data):
-    """
-    التحقق من توزيع الفئات.
-    """
-    gesture_counts = data['Gesture'].value_counts(normalize=True) * 100  # عرض النسب المئوية
-    print("توزيع الفئات (بالنسب المئوية):")
+    gesture_counts = data['Gesture'].value_counts(normalize=True) * 100
+    print("توزيع الفئات قبل الموازنة (بالنسب المئوية):")
     print(gesture_counts)
     return gesture_counts
 
 
-# ------------------------
-# 3. تطبيق إعادة التوزيع (SMOTE)
-# ------------------------
+# تطبيق SMOTE لإعادة التوزيع
 def balance_data(data):
-    """
-    استخدام SMOTE لإعادة توازن البيانات.
-    """
-    # ميزات التدريب
+    print("جارٍ تطبيق SMOTE لموازنة البيانات...")
+
     X = data.drop(columns=['Gesture']).values
     y = data['Gesture']
 
-    # تقسيم البيانات إلى مجموعة تدريب واختبار
+    # تقسيم البيانات إلى تدريب واختبار
+    print("جارٍ تقسيم البيانات إلى مجموعات تدريب واختبار...")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    print(f"تم تقسيم البيانات بنجاح. عدد بيانات التدريب: {len(X_train)}, عدد بيانات الاختبار: {len(X_test)}")
 
-    # تطبيق SMOTE فقط على مجموعة التدريب
+    # تطبيق SMOTE على مجموعة التدريب
     smote = SMOTE(sampling_strategy='auto', random_state=42)
+    print("جارٍ تطبيق SMOTE على مجموعة التدريب...")
     X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
 
-    # تحويل البيانات المعالجة إلى DataFrame جديد
+    print(f"تم تطبيق SMOTE بنجاح. عدد البيانات بعد الموازنة: {len(X_resampled)}")
+
+    # إنشاء DataFrame للبيانات المتوازنة
     feature_columns = [f"Feature_{i + 1}" for i in range(X_resampled.shape[1])]
     balanced_data = pd.DataFrame(X_resampled, columns=feature_columns)
     balanced_data['Gesture'] = y_resampled
 
-    # عرض التوزيع بعد الموازنة
+    # طباعة توزيع الفئات بعد الموازنة
     print("توزيع الفئات بعد الموازنة:")
     check_balance(balanced_data)
 
-    # إعادة البيانات المتوازنة
     return balanced_data, X_test, y_test
 
 
-# ------------------------
-# 4. حفظ البيانات المتوازنة
-# ------------------------
-def save_data(data, file_path):
-    """
-    حفظ البيانات المتوازنة إلى ملف Excel.
-    """
+# حفظ البيانات المتوازنة إلى Excel وCSV
+def save_data(data, file_path, csv_path=None):
+    print(f"جارٍ حفظ البيانات في الملف: {file_path}")
     data.to_excel(file_path, index=False)
     print(f"تم حفظ البيانات في {file_path}")
 
+    if csv_path:
+        print(f"جارٍ حفظ البيانات في الملف: {csv_path}")
+        data.to_csv(csv_path, index=False)
+        print(f"تم حفظ البيانات في {csv_path}")
 
-# ------------------------
-# 5. البرنامج الرئيسي
-# ------------------------
+
 if __name__ == "__main__":
-    # اسم ملف الإدخال
     input_file = "gesture_features.xlsx"
-    # اسم ملف الإخراج
     output_file = "balanced_gesture_features.xlsx"
+    output_csv_file = "balanced_gesture_features.csv"
 
     try:
-        # تحميل البيانات
+        print("بداية معالجة البيانات...")
         data = load_data(input_file)
-
-        # التحقق من توازن الفئات قبل التوزيع
-        print("قبل التوزيع:")
+        print("قبل الموازنة:")
         check_balance(data)
 
-        # تطبيق إعادة التوزيع
         balanced_data, X_test, y_test = balance_data(data)
+        save_data(balanced_data, output_file, output_csv_file)
 
-        # حفظ البيانات المتوازنة
-        save_data(balanced_data, output_file)
-
-        # التحقق من التوازن بعد الموازنة
         print("تمت عملية الموازنة بنجاح.")
-        print("توزيع الفئات بعد الموازنة:")
-        check_balance(balanced_data)
-
     except Exception as e:
         print(f"حدث خطأ: {str(e)}")
