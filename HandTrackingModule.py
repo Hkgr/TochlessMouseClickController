@@ -11,7 +11,7 @@ class HandDetector:
         self.detectionCon = float(detectionCon)
         self.trackCon = float(trackCon)
 
-        # تهيئة MediaPipe
+        #  MediaPipe
         self.mpHands = mp.solutions.hands
         self.hands = self.mpHands.Hands(
             static_image_mode=self.mode,
@@ -20,16 +20,15 @@ class HandDetector:
             min_tracking_confidence=self.trackCon
         )
         self.mpDraw = mp.solutions.drawing_utils
-        self.tipIds = [4, 8, 12, 16, 20]  # نقاط أطراف الأصابع
+        self.tipIds = [4, 8, 12, 16, 20]
 
     def findHands(self, img, draw=True):
         """
-        اكتشاف اليدين في الصورة
         """
         if img is None:
             return None
 
-        # تحويل الصورة إلى RGB
+        #  RGB
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         self.results = self.hands.process(imgRGB)
 
@@ -41,7 +40,6 @@ class HandDetector:
 
     def findPosition(self, img, handNo=0, draw=True):
         """
-        تحديد مواقع نقاط اليد
         """
         lmList = []
         if img is None:
@@ -62,22 +60,18 @@ class HandDetector:
 
     def fingersUp(self, img):
         """
-        تحديد حالة الأصابع (مرفوعة أم لا)
         """
-        # الحصول على مواقع اليد
-        lmList = self.findPosition(img, draw=False)  # استخدم findPosition للحصول على lmList
+        lmList = self.findPosition(img, draw=False)
         fingers = []
 
         if len(lmList) == 0:
-            return [0, 0, 0, 0, 0]  # في حالة عدم وجود اليد
+            return [0, 0, 0, 0, 0]
 
-        # الإبهام
         if lmList[self.tipIds[0]][1] > lmList[self.tipIds[0] - 1][1]:
             fingers.append(1)
         else:
             fingers.append(0)
 
-        # باقي الأصابع
         for id in range(1, 5):
             if lmList[self.tipIds[id]][2] < lmList[self.tipIds[id] - 2][2]:
                 fingers.append(1)

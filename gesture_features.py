@@ -22,7 +22,6 @@ try:
         gesture = row['Gesture']
         landmarks = parse_landmarks(row['Landmarks'])
 
-        # التحقق من صحة البيانات
         if landmarks and all(len(point) == 3 for point in landmarks):  # التحقق من أن كل نقطة تحتوي على 3 عناصر
             features = extract_features(landmarks)
             features_list.append(features)
@@ -36,7 +35,6 @@ except Exception as e:
 features_array = np.array(features_list)
 labels_array = np.array(labels)
 
-# تطبيع الميزات إذا لزم الأمر (اختياري)
 # features_array = (features_array - features_array.mean(axis=0)) / features_array.std(axis=0)
 
 features_df = pd.DataFrame(features_array)

@@ -6,7 +6,6 @@ from sklearn.model_selection import train_test_split
 import os
 
 
-# تحميل البيانات من ملف Excel
 def load_data(file_path):
     print(f"جارٍ تحميل البيانات من الملف: {file_path}")
 
@@ -15,7 +14,6 @@ def load_data(file_path):
 
     data = pd.read_excel(file_path)
 
-    # تحقق من وجود عمود 'Gesture' في البيانات
     if 'Gesture' not in data.columns:
         raise ValueError("العمود 'Gesture' غير موجود في البيانات.")
 
@@ -23,7 +21,6 @@ def load_data(file_path):
     return data
 
 
-# التحقق من توزيع الفئات
 def check_balance(data):
     gesture_counts = data['Gesture'].value_counts(normalize=True) * 100
     print("توزيع الفئات قبل الموازنة (بالنسب المئوية):")
@@ -31,47 +28,42 @@ def check_balance(data):
     return gesture_counts
 
 
-# تطبيق SMOTE لإعادة التوزيع
+#  SMOTE
 def balance_data(data):
     print("جارٍ تطبيق SMOTE لموازنة البيانات...")
 
     X = data.drop(columns=['Gesture']).values
     y = data['Gesture']
 
-    # تقسيم البيانات إلى تدريب واختبار
     print("جارٍ تقسيم البيانات إلى مجموعات تدريب واختبار...")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     print(f"تم تقسيم البيانات بنجاح. عدد بيانات التدريب: {len(X_train)}, عدد بيانات الاختبار: {len(X_test)}")
 
-    # تطبيق SMOTE على مجموعة التدريب
     smote = SMOTE(sampling_strategy='auto', random_state=42)
     print("جارٍ تطبيق SMOTE على مجموعة التدريب...")
     X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
 
     print(f"تم تطبيق SMOTE بنجاح. عدد البيانات بعد الموازنة: {len(X_resampled)}")
 
-    # إنشاء DataFrame للبيانات المتوازنة
     feature_columns = [f"Feature_{i + 1}" for i in range(X_resampled.shape[1])]
     balanced_data = pd.DataFrame(X_resampled, columns=feature_columns)
     balanced_data['Gesture'] = y_resampled
 
-    # طباعة توزيع الفئات بعد الموازنة
     print("توزيع الفئات بعد الموازنة:")
     check_balance(balanced_data)
 
     return balanced_data, X_test, y_test
 
 
-# حفظ البيانات المتوازنة إلى Excel وCSV
 def save_data(data, file_path, csv_path=None):
     print(f"جارٍ حفظ البيانات في الملف: {file_path}")
     data.to_excel(file_path, index=False)
     print(f"تم حفظ البيانات في {file_path}")
 
-    if csv_path:
-        print(f"جارٍ حفظ البيانات في الملف: {csv_path}")
-        data.to_csv(csv_path, index=False)
-        print(f"تم حفظ البيانات في {csv_path}")
+    # if csv_path:
+    #     print(f"جارٍ حفظ البيانات في الملف: {csv_path}")
+    #     data.to_csv(csv_path, index=False)
+    #     print(f"تم حفظ البيانات في {csv_path}")
 
 
 if __name__ == "__main__":

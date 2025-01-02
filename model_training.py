@@ -14,7 +14,6 @@ import seaborn as sns
 
 def analyze_data(data):
     """
-    تحليل شامل للبيانات قبل التدريب
     """
     print("\n=== تحليل البيانات ===")
     print(f"شكل البيانات: {data.shape}")
@@ -23,13 +22,11 @@ def analyze_data(data):
     print("\nإحصائيات الميزات:")
     print(data.describe())
 
-    # فحص القيم المفقودة
     missing = data.isnull().sum()
     if missing.any():
         print("\nالقيم المفقودة:")
         print(missing[missing > 0])
 
-    # فحص القيم الشاذة
     print("\nفحص القيم الشاذة...")
     Q1 = data.quantile(0.25)
     Q3 = data.quantile(0.75)
@@ -38,7 +35,6 @@ def analyze_data(data):
     print("عدد القيم الشاذة في كل عمود:")
     print(outliers[outliers > 0])
 
-    # رسم توزيع الفئات
     plt.figure(figsize=(10, 5))
     data['Gesture'].value_counts().plot(kind='bar')
     plt.title('توزيع الفئات')
@@ -51,37 +47,30 @@ def analyze_data(data):
 
 def prepare_data(file_path='balanced_gesture_features.xlsx'):
     """
-    تجهيز البيانات مع معالجة محسنة
     """
     print("\n=== تجهيز البيانات ===")
     data = pd.read_excel(file_path)
 
-    # تحليل البيانات
     class_distribution = analyze_data(data)
 
-    # فحص وإزالة الأعمدة الثابتة أو ذات التباين المنخفض
     variance = data.var()
     low_variance_cols = variance[variance < 0.01].index
     if len(low_variance_cols) > 0:
         print(f"\nالأعمدة ذات التباين المنخفض: {low_variance_cols}")
         data = data.drop(columns=low_variance_cols)
 
-    # فصل الميزات والتصنيفات
     X = data.drop('Gesture', axis=1).values
     y = data['Gesture'].values
 
-    # تشفير التصنيفات
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
     y_onehot = to_categorical(y_encoded)
 
-    # تقسيم البيانات مع الحفاظ على التوازن
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_onehot, test_size=0.2, random_state=42,
         stratify=y_encoded
     )
 
-    # تطبيع البيانات
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
@@ -100,10 +89,8 @@ class GestureRecognitionCNN:
 
     def _build_model(self):
         """
-        بناء نموذج محسن بناءً على حجم المدخلات
         """
         model = models.Sequential([
-            # طبقة المدخلات
             layers.Input(shape=(self.input_shape,)),
             layers.Reshape((self.input_shape, 1)),
 
@@ -137,7 +124,7 @@ class GestureRecognitionCNN:
         ])
         return model
 
-    def compile_model(self, learning_rate=0.001):
+    def compile_model(self, learning_rate=0.000005):
         optimizer = optimizers.Adam(learning_rate=learning_rate)
         self.model.compile(
             optimizer=optimizer,
@@ -145,7 +132,7 @@ class GestureRecognitionCNN:
             metrics=['accuracy']
         )
 
-    def train(self, X_train, y_train, X_val, y_val, class_weights=None, epochs=100, batch_size=32):
+    def train(self, X_train, y_train, X_val, y_val, class_weights=None, epochs=100, batch_size=16):
         early_stopping = tf.keras.callbacks.EarlyStopping(
             monitor='val_loss',
             patience=15,
@@ -172,16 +159,13 @@ class GestureRecognitionCNN:
 
 def evaluate_model(model, X_test, y_test, label_encoder):
     """
-    تقييم شامل للنموذج
     """
     print("\n=== تقييم النموذج ===")
 
-    # التنبؤ
     y_pred_prob = model.predict(X_test)
     y_pred = np.argmax(y_pred_prob, axis=1)
     y_true = np.argmax(y_test, axis=1)
 
-    # حساب الدقة وF1
     accuracy = np.mean(y_pred == y_true)
     f1 = f1_score(y_true, y_pred, average='weighted')
 
@@ -195,7 +179,6 @@ def evaluate_model(model, X_test, y_test, label_encoder):
         target_names=label_encoder.classes_
     ))
 
-    # مصفوفة الالتباس
     plt.figure(figsize=(10, 8))
     confusion = tf.math.confusion_matrix(y_true, y_pred)
     sns.heatmap(
@@ -214,33 +197,27 @@ def evaluate_model(model, X_test, y_test, label_encoder):
 
 
 def main():
-    # تجهيز البيانات مع التحليل
     X_train, X_test, y_train, y_test, label_encoder, scaler = prepare_data()
 
-    # حساب أوزان الفئات
     class_weights = dict(enumerate(
         len(y_train) / (len(np.unique(y_train)) * np.sum(y_train, axis=0))
     ))
 
-    # بناء وتدريب النموذج
     model = GestureRecognitionCNN(
         input_shape=X_train.shape[1],
         num_classes=len(label_encoder.classes_)
     )
     model.compile_model(learning_rate=0.001)
 
-    # تدريب النموذج
     history = model.train(
         X_train, y_train,
         X_test, y_test,
         class_weights=class_weights,
-        epochs=100,
-        batch_size=32
+        epochs=300,
+        batch_size=16
     )
 
-    # تقييم النموذج
 
-    # حفظ النموذج والمعايير
     model.model.save('gesture_cnn_model.h5')
     np.save('scaler_params.npy', {
         'mean': scaler.mean_,
